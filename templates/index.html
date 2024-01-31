@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drowsiness Detection</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        #video, #processedFrame {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+    </style>
+</head>
+<body>
+<div id="container">
+    <h1>Drowsiness Detection Stream</h1>
+    <button id="startButton">Start Camera</button>
+    <button id="stopButton" style="display: none;">Stop Camera</button>
+    <video id="video" width="640" height="480" autoplay style="display: none;"></video>
+    <img id="processedFrame" src="" width="640" height="480" style="display: none;">
+    <div id="drowsinessLevel" style="font-size: 20px; color: #333; margin-top: 10px;"></div>
+
+    <script>
+        var video = document.getElementById('video');
+        var startButton = document.getElementById("startButton");
+        var stopButton = document.getElementById("stopButton");
+        var intervalId = null;
+        var drowsinessLevelElement = document.getElementById('drowsinessLevel');
+        var drowsiness_score = 0;
+
+        startButton.addEventListener("click", function() {
+            drowsiness_score = 0;
+            drowsinessLevelElement.innerText = 'Drowsiness Level: ' + drowsiness_score;
+
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                    video.play();
+                    video.style.display = 'block';
+                    processFrames();
+                    startButton.style.display = 'none';
+                    stopButton.style.display = 'block';
+                    document.getElementById('drowsinessLevel').style.display = 'block';
+                })
+                .catch(function(err) {
+                    console.log("An error occurred: " + err);
+                });
+        });
+
+        stopButton.addEventListener("click", function() {
+            video.srcObject.getTracks().forEach(function(track) {
+                track.stop();
+            });
+            video.style.display = 'none';
+            startButton.style.display = 'block';
+            stopButton.style.display = 'none';
+            document.getElementById('drowsinessLevel').style.display = 'none';
+        });
+
+        function processFrames() {
+            intervalId = setInterval(function() {
+                if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                    sendFrame();
+                }
+            }, 100);
+        }
+
+        function sendFrame() {
+            var canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            var data = canvas.toDataURL('image/jpeg');
+
+            fetch('/process_frame', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ image: data }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('processedFrame').src = data.image;
+                if (data.drowsinessLevel !== undefined) {
+                    document.getElementById('drowsinessLevel').innerText = 'Drowsiness Level: ' + data.drowsinessLevel;
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</div>
+</body>
+</html>

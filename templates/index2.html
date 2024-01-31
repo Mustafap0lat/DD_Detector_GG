@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drowsiness Detection</title>
+</head>
+<body>
+   <h1>Drowsiness Detection Stream</h1>
+   <button id="startButton">Start Camera</button>
+   <video id="video" width="640" height="480" autoplay style="display: none;"></video>
+   <img id="processedFrame" src="" width="640" height="480">
+    <script>
+        var video = document.getElementById('video');
+
+        document.getElementById("startButton").addEventListener("click", function() {
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(function(stream) {
+                    video.srcObject = stream;
+                    video.addEventListener('play', function() {
+
+                        setInterval(function() {
+                            sendFrame();
+                        }, 100);
+                    });
+                })
+                .catch(function(err) {
+                    console.log("An error occurred: " + err);
+                });
+        });
+
+        function sendFrame() {
+            var canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            var data = canvas.toDataURL('image/jpeg');
+
+            fetch('/process_frame', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ image: data }),
+            })
+                    .then(response => response.json())
+            .then(data => {
+                document.getElementById('processedFrame').src = data.image;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>
+
